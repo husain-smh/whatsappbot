@@ -1,0 +1,6 @@
+# This file is for reference only
+# Create your .env file with actual values
+# See env.example for template
+
+# IMPORTANT: Replace with FOUNDER's WhatsApp number before deployment!
+

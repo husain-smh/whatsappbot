@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp Task Bot - Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📋 WhatsApp Task Bot</h1>
+      <p class="subtitle">Your AI-powered task and idea tracker</p>
+      <div id="bot-status" class="status-badge">
+        <span class="status-dot"></span>
+        <span class="status-text">Checking...</span>
+      </div>
+    </header>
+
+    <!-- Stats Section -->
+    <section class="stats-section">
+      <div class="stat-card">
+        <div class="stat-number" id="stat-total">0</div>
+        <div class="stat-label">Total Items</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="stat-tasks">0</div>
+        <div class="stat-label">Tasks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="stat-ideas">0</div>
+        <div class="stat-label">Ideas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="stat-pending">0</div>
+        <div class="stat-label">Pending</div>
+      </div>
+    </section>
+
+    <!-- Filters Section -->
+    <section class="filters-section">
+      <div class="filter-group">
+        <label for="filter-type">Type:</label>
+        <select id="filter-type">
+          <option value="">All</option>
+          <option value="task">Tasks</option>
+          <option value="idea">Ideas</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filter-priority">Priority:</label>
+        <select id="filter-priority">
+          <option value="">All</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filter-category">Category:</label>
+        <select id="filter-category">
+          <option value="">All</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filter-status">Status:</label>
+        <select id="filter-status">
+          <option value="">All</option>
+          <option value="pending">Pending</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+
+      <div class="filter-group search-group">
+        <label for="filter-search">Search:</label>
+        <input type="text" id="filter-search" placeholder="Search content...">
+      </div>
+
+      <button id="btn-refresh" class="btn-refresh">🔄 Refresh</button>
+    </section>
+
+    <!-- Items Section -->
+    <section class="items-section">
+      <div id="items-container">
+        <div class="loading">Loading...</div>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

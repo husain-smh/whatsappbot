@@ -1,0 +1,27 @@
+{
+  "name": "wabot",
+  "version": "1.0.0",
+  "description": "WhatsApp Task Bot - AI-powered task and idea categorization",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "migrate-schema": "node src/migrate-schema.js",
+    "migrate-tags": "node src/migrate-tags.js",
+    "test-queries": "node src/test-queries.js",
+    "cleanup-bot-responses": "node src/cleanup-bot-responses.js",
+    "reset-database": "node src/reset-database.js"
+  },
+  "keywords": ["whatsapp", "bot", "task-management", "ai"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "twilio": "^5.3.5",
+    "openai": "^4.67.3",
+    "better-sqlite3": "^11.5.0",
+    "express": "^4.21.1",
+    "dotenv": "^16.4.5"
+  }
+}
+

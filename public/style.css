@@ -1,0 +1,465 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  background: #ffffff;
+  min-height: 100vh;
+  color: #37352f;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* Header */
+header {
+  margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e9e9e7;
+}
+
+h1 {
+  font-size: 40px;
+  font-weight: 700;
+  color: #37352f;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.subtitle {
+  color: rgba(55, 53, 47, 0.65);
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+  font-size: 13px;
+  color: rgba(55, 53, 47, 0.65);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #b0b0af;
+  animation: pulse 2s infinite;
+}
+
+.status-badge.connected .status-dot {
+  background: #16a34a;
+}
+
+.status-badge.disconnected .status-dot {
+  background: #dc2626;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Stats Section */
+.stats-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: #f7f6f3;
+  padding: 20px;
+  border-radius: 6px;
+  border: 1px solid #e9e9e7;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  color: #37352f;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  color: rgba(55, 53, 47, 0.65);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Filters Section */
+.filters-section {
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 6px;
+  border: 1px solid #e9e9e7;
+  margin-bottom: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.search-group {
+  flex: 1;
+  min-width: 220px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.65);
+  font-weight: 500;
+}
+
+.filter-group select,
+.filter-group input {
+  padding: 7px 10px;
+  border: 1px solid #e9e9e7;
+  border-radius: 4px;
+  font-size: 14px;
+  background: white;
+  color: #37352f;
+  transition: border-color 0.2s;
+}
+
+.filter-group select:hover,
+.filter-group input:hover {
+  border-color: #d1d1cf;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+  outline: none;
+  border-color: #2383e2;
+}
+
+.btn-refresh {
+  padding: 7px 14px;
+  background: #37352f;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-refresh:hover {
+  background: #2f2e29;
+}
+
+.btn-refresh:active {
+  transform: scale(0.98);
+}
+
+/* Items Section */
+.items-section {
+  background: #ffffff;
+}
+
+#items-container {
+  min-height: 200px;
+}
+
+.loading {
+  text-align: center;
+  color: rgba(55, 53, 47, 0.45);
+  padding: 60px 20px;
+  font-size: 14px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: rgba(55, 53, 47, 0.45);
+}
+
+.empty-state h3 {
+  margin-bottom: 8px;
+  color: rgba(55, 53, 47, 0.65);
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.empty-state p {
+  font-size: 14px;
+}
+
+/* Item Cards - Notion Style */
+.item-card {
+  border: 1px solid #e9e9e7;
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  transition: background 0.1s, box-shadow 0.1s;
+  cursor: pointer;
+  background: #ffffff;
+}
+
+.item-card:hover {
+  background: rgba(0, 0, 0, 0.01);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.item-card.priority-high {
+  border-left: 2px solid #eb5757;
+}
+
+.item-card.priority-medium {
+  border-left: 2px solid #f2994a;
+}
+
+.item-card.priority-low {
+  border-left: 2px solid #219653;
+}
+
+/* Header with System Metadata - Outlined Monochrome Badges */
+.item-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0px 6px;
+  height: 20px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  border: 1px solid;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.badge:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* Type Badge - Subtle Gray */
+.item-type {
+  border-color: rgba(55, 53, 47, 0.16);
+  color: rgba(55, 53, 47, 0.65);
+}
+
+.item-type.idea {
+  border-color: rgba(120, 90, 160, 0.3);
+  color: rgba(120, 90, 160, 0.85);
+}
+
+/* Priority Badge - Subtle Tones */
+.item-priority.high {
+  border-color: rgba(235, 87, 87, 0.3);
+  color: rgba(235, 87, 87, 0.9);
+}
+
+.item-priority.medium {
+  border-color: rgba(242, 153, 74, 0.3);
+  color: rgba(242, 153, 74, 0.9);
+}
+
+.item-priority.low {
+  border-color: rgba(33, 150, 83, 0.3);
+  color: rgba(33, 150, 83, 0.9);
+}
+
+/* Category Badge - Neutral */
+.item-category {
+  border-color: rgba(55, 53, 47, 0.16);
+  color: rgba(55, 53, 47, 0.65);
+}
+
+/* Status Badge - Minimalist */
+.item-status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.item-status.pending {
+  border-color: rgba(242, 153, 74, 0.3);
+  color: rgba(242, 153, 74, 0.9);
+}
+
+.item-status.completed {
+  border-color: rgba(33, 150, 83, 0.3);
+  color: rgba(33, 150, 83, 0.9);
+}
+
+.item-status.cancelled {
+  border-color: rgba(55, 53, 47, 0.16);
+  color: rgba(55, 53, 47, 0.4);
+}
+
+/* Content */
+.item-content {
+  font-size: 14px;
+  color: #37352f;
+  margin-bottom: 8px;
+  line-height: 1.65;
+  word-wrap: break-word;
+}
+
+/* Content Tags Section - Soft Filled Pills */
+.item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tag-pill {
+  padding: 1px 7px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.tag-pill:hover {
+  opacity: 0.8;
+}
+
+/* Notion-inspired muted tag colors */
+.tag-pill:nth-child(6n+1) {
+  background: rgba(227, 226, 224, 0.5);
+  color: rgba(55, 53, 47, 0.85);
+}
+
+.tag-pill:nth-child(6n+2) {
+  background: rgba(211, 229, 239, 0.6);
+  color: rgba(24, 51, 71, 0.85);
+}
+
+.tag-pill:nth-child(6n+3) {
+  background: rgba(238, 224, 218, 0.6);
+  color: rgba(68, 42, 30, 0.85);
+}
+
+.tag-pill:nth-child(6n+4) {
+  background: rgba(253, 236, 200, 0.6);
+  color: rgba(89, 54, 0, 0.85);
+}
+
+.tag-pill:nth-child(6n+5) {
+  background: rgba(219, 237, 219, 0.6);
+  color: rgba(28, 56, 41, 0.85);
+}
+
+.tag-pill:nth-child(6n+6) {
+  background: rgba(232, 222, 238, 0.6);
+  color: rgba(65, 36, 84, 0.85);
+}
+
+/* Meta */
+.item-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.45);
+  flex-wrap: wrap;
+}
+
+.item-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.item-deadline {
+  color: rgba(35, 131, 226, 0.85);
+  font-weight: 500;
+}
+
+.item-deadline.overdue {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 20px 12px;
+  }
+  
+  h1 {
+    font-size: 32px;
+  }
+  
+  .filters-section {
+    flex-direction: column;
+  }
+  
+  .filter-group,
+  .search-group {
+    width: 100%;
+    min-width: 100%;
+  }
+  
+  .stats-section {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .stat-card {
+    padding: 16px;
+  }
+  
+  .stat-number {
+    font-size: 28px;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
