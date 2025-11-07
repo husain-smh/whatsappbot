@@ -2,20 +2,25 @@ import dotenv from 'dotenv';
 import { initializeDatabase, closeDatabase } from './database.js';
 import { startServer } from './server.js';
 
-// Load environment variables
+// Load environment variables from .env file (for local development)
+// On Railway/production, variables are injected directly
 dotenv.config();
 
 // Check required environment variables
 if (!process.env.OPENAI_API_KEY) {
-  console.error('❌ Error: OPENAI_API_KEY not found in .env file');
-  console.error('Please create a .env file and add your OpenAI API key:');
+  console.error('❌ Error: OPENAI_API_KEY not found');
+  console.error('Please set environment variable:');
+  console.error('  - Locally: Add to .env file');
+  console.error('  - Railway: Add in Variables tab');
   console.error('OPENAI_API_KEY=your_key_here');
   process.exit(1);
 }
 
 if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
-  console.error('❌ Error: Twilio credentials not found in .env file');
-  console.error('Please add the following to your .env file:');
+  console.error('❌ Error: Twilio credentials not found');
+  console.error('Please set environment variables:');
+  console.error('  - Locally: Add to .env file');
+  console.error('  - Railway: Add in Variables tab');
   console.error('TWILIO_ACCOUNT_SID=your_account_sid');
   console.error('TWILIO_AUTH_TOKEN=your_auth_token');
   console.error('TWILIO_WHATSAPP_FROM=whatsapp:+14155238886');
