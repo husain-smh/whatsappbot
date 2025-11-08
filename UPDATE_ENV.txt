@@ -1,0 +1,33 @@
+====================================================================
+  🔒 IMPORTANT: Update Your .env File
+====================================================================
+
+Add these 3 new lines to your .env file:
+
+DASHBOARD_USERNAME=admin
+DASHBOARD_PASSWORD=changeme123
+SESSION_SECRET=your-random-secret-key-change-this-to-something-secure
+
+====================================================================
+
+EXAMPLE .env file (with new additions):
+
+OPENAI_API_KEY=sk-your-actual-key
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your-token
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+MY_WHATSAPP_NUMBER=whatsapp:+1234567890
+PORT=3000
+DASHBOARD_USERNAME=admin
+DASHBOARD_PASSWORD=changeme123
+SESSION_SECRET=your-random-secret-key-change-this-to-something-secure
+
+====================================================================
+
+⚠️ REMEMBER TO:
+1. Change 'admin' to your desired username
+2. Change 'changeme123' to a STRONG password
+3. Change SESSION_SECRET to a random string (32+ characters)
+
+====================================================================
+

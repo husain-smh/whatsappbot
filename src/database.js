@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,13 +12,56 @@ const db = new Database(join(__dirname, '..', 'tasks.db'));
 db.pragma('journal_mode = WAL');
 
 /**
+ * Password hashing utilities
+ */
+export function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password, storedHash) {
+  const [salt, originalHash] = storedHash.split(':');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === originalHash;
+}
+
+/**
+ * Generate secure random password
+ */
+export function generatePassword(length = 12) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const randomBytes = crypto.randomBytes(length);
+  let password = '';
+  
+  for (let i = 0; i < length; i++) {
+    password += chars[randomBytes[i] % chars.length];
+  }
+  
+  return password;
+}
+
+/**
  * Initialize database schema
  */
 export function initializeDatabase() {
+  // Create users table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      phone_number TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      last_active TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Create items table
   db.exec(`
     CREATE TABLE IF NOT EXISTS items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_phone TEXT,
       type TEXT NOT NULL CHECK(type IN ('task', 'idea')),
       content TEXT NOT NULL,
       priority TEXT CHECK(priority IN ('high', 'medium', 'low')),
@@ -27,7 +71,8 @@ export function initializeDatabase() {
       tags TEXT,
       status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'completed', 'cancelled')),
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_phone) REFERENCES users(phone_number)
     )
   `);
 
@@ -44,42 +89,14 @@ export function initializeDatabase() {
 
   // Create indexes for better query performance
   db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_items_user_phone ON items(user_phone);
     CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
     CREATE INDEX IF NOT EXISTS idx_items_priority ON items(priority);
     CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);
     CREATE INDEX IF NOT EXISTS idx_items_status ON items(status);
     CREATE INDEX IF NOT EXISTS idx_items_deadline ON items(deadline);
     CREATE INDEX IF NOT EXISTS idx_items_tags ON items(tags);
-  `);
-
-  // Create FTS5 virtual table for full-text search
-  db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
-      content, 
-      tags, 
-      content='items', 
-      content_rowid='id'
-    );
-  `);
-
-  // Create triggers to keep FTS table in sync
-  db.exec(`
-    CREATE TRIGGER IF NOT EXISTS items_ai AFTER INSERT ON items BEGIN
-      INSERT INTO items_fts(rowid, content, tags) VALUES (new.id, new.content, new.tags);
-    END;
-  `);
-
-  db.exec(`
-    CREATE TRIGGER IF NOT EXISTS items_ad AFTER DELETE ON items BEGIN
-      INSERT INTO items_fts(items_fts, rowid, content, tags) VALUES('delete', old.id, old.content, old.tags);
-    END;
-  `);
-
-  db.exec(`
-    CREATE TRIGGER IF NOT EXISTS items_au AFTER UPDATE ON items BEGIN
-      INSERT INTO items_fts(items_fts, rowid, content, tags) VALUES('delete', old.id, old.content, old.tags);
-      INSERT INTO items_fts(rowid, content, tags) VALUES (new.id, new.content, new.tags);
-    END;
+    CREATE INDEX IF NOT EXISTS idx_items_user_status ON items(user_phone, status);
   `);
 
   // Insert default categories if they don't exist
@@ -94,9 +111,104 @@ export function initializeDatabase() {
 }
 
 /**
+ * User management functions
+ */
+
+/**
+ * Get user by phone number
+ */
+export function getUserByPhone(phone_number) {
+  const stmt = db.prepare('SELECT * FROM users WHERE phone_number = ?');
+  return stmt.get(phone_number);
+}
+
+/**
+ * Authenticate user (for dashboard login)
+ */
+export function authenticateUser(phone_number, password) {
+  const user = getUserByPhone(phone_number);
+  
+  if (!user) {
+    return null;
+  }
+  
+  if (user.status !== 'active') {
+    console.log(`User ${phone_number} is inactive`);
+    return null;
+  }
+  
+  const isValid = verifyPassword(password, user.password_hash);
+  
+  if (isValid) {
+    // Update last_active timestamp
+    db.prepare('UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE phone_number = ?')
+      .run(phone_number);
+    return {
+      phone_number: user.phone_number,
+      name: user.name,
+      status: user.status
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Auto-register new user (called on first WhatsApp message)
+ * SIMPLE VERSION - No manual setup needed!
+ */
+export function autoRegisterUser(phone_number) {
+  // Extract name from phone number
+  const name = `User ${phone_number.replace('whatsapp:', '')}`;
+  
+  // Generate secure random password
+  const password = generatePassword(12);
+  const password_hash = hashPassword(password);
+  
+  const stmt = db.prepare(`
+    INSERT INTO users (phone_number, name, password_hash)
+    VALUES (?, ?, ?)
+  `);
+  
+  try {
+    stmt.run(phone_number, name, password_hash);
+    console.log(`✓ Auto-registered new user: ${name} (${phone_number})`);
+    
+    // Return user info with plain password (only time it's visible)
+    return {
+      phone_number,
+      name,
+      password,  // Plain text - will be sent to user via WhatsApp
+      isNewUser: true
+    };
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed')) {
+      console.log(`User ${phone_number} already exists`);
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Create user manually (for admin use)
+ */
+export function createUser(phone_number, name, password) {
+  const password_hash = hashPassword(password);
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO users (phone_number, name, password_hash)
+    VALUES (?, ?, ?)
+  `);
+  
+  stmt.run(phone_number, name, password_hash);
+  console.log(`✓ Created/updated user: ${name} (${phone_number})`);
+  return true;
+}
+
+/**
  * Save a new item (task or idea)
  */
-export function saveItem({ type, content, priority, category, deadline, context, tags }) {
+export function saveItem({ user_phone, type, content, priority, category, deadline, context, tags }) {
   // First, ensure the category exists
   if (category) {
     const categoryExists = db.prepare('SELECT id FROM categories WHERE name = ?').get(category);
@@ -110,11 +222,11 @@ export function saveItem({ type, content, priority, category, deadline, context,
   const tagsString = tags && Array.isArray(tags) ? tags.join(',') : tags || '';
 
   const stmt = db.prepare(`
-    INSERT INTO items (type, content, priority, category, deadline, context, tags)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO items (user_phone, type, content, priority, category, deadline, context, tags)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const result = stmt.run(type, content, priority, category, deadline, context, tagsString);
+  const result = stmt.run(user_phone, type, content, priority, category, deadline, context, tagsString);
   
   console.log(`✓ Saved ${type}: ${content.substring(0, 50)}...`);
   if (tagsString) {
@@ -124,11 +236,11 @@ export function saveItem({ type, content, priority, category, deadline, context,
 }
 
 /**
- * Get all items with optional filters
+ * Get all items with optional filters (scoped to user)
  */
-export function getItems(filters = {}) {
-  let query = 'SELECT * FROM items WHERE 1=1';
-  const params = [];
+export function getItems(user_phone, filters = {}) {
+  let query = 'SELECT * FROM items WHERE user_phone = ?';
+  const params = [user_phone];
 
   if (filters.type) {
     query += ' AND type = ?';
@@ -155,63 +267,38 @@ export function getItems(filters = {}) {
     params.push(`%${filters.search}%`);
   }
 
-  // Add date range filtering
-  if (filters.deadlineFrom) {
-    query += ' AND deadline >= ?';
-    params.push(filters.deadlineFrom);
-  }
-
-  if (filters.deadlineTo) {
-    query += ' AND deadline <= ?';
-    params.push(filters.deadlineTo);
-  }
-
-  // Add sorting
-  const sortBy = filters.sortBy || 'created_at';
-  const sortOrder = filters.sortOrder || 'DESC';
-  query += ` ORDER BY ${sortBy} ${sortOrder}`;
-
-  // Add limit and offset for pagination
-  if (filters.limit) {
-    query += ' LIMIT ?';
-    params.push(filters.limit);
-    
-    if (filters.offset) {
-      query += ' OFFSET ?';
-      params.push(filters.offset);
-    }
-  }
+  query += ' ORDER BY created_at DESC';
 
   const stmt = db.prepare(query);
   return stmt.all(...params);
 }
 
 /**
- * Get a single item by ID
+ * Get a single item by ID (with user verification)
  */
-export function getItemById(id) {
-  const stmt = db.prepare('SELECT * FROM items WHERE id = ?');
-  return stmt.get(id);
+export function getItemById(id, user_phone) {
+  const stmt = db.prepare('SELECT * FROM items WHERE id = ? AND user_phone = ?');
+  return stmt.get(id, user_phone);
 }
 
 /**
- * Update item status
+ * Update item status (with user verification)
  */
-export function updateItemStatus(id, status) {
+export function updateItemStatus(id, status, user_phone) {
   const stmt = db.prepare(`
     UPDATE items 
     SET status = ?, updated_at = CURRENT_TIMESTAMP 
-    WHERE id = ?
+    WHERE id = ? AND user_phone = ?
   `);
-  return stmt.run(status, id);
+  return stmt.run(status, id, user_phone);
 }
 
 /**
- * Delete an item
+ * Delete an item (with user verification)
  */
-export function deleteItem(id) {
-  const stmt = db.prepare('DELETE FROM items WHERE id = ?');
-  return stmt.run(id);
+export function deleteItem(id, user_phone) {
+  const stmt = db.prepare('DELETE FROM items WHERE id = ? AND user_phone = ?');
+  return stmt.run(id, user_phone);
 }
 
 /**
@@ -241,33 +328,34 @@ export function createCategory(name, parentId = null) {
 }
 
 /**
- * Get statistics for dashboard
+ * Get statistics for dashboard (scoped to user)
  */
-export function getStats() {
-  const totalTasks = db.prepare("SELECT COUNT(*) as count FROM items WHERE type = 'task'").get().count;
-  const totalIdeas = db.prepare("SELECT COUNT(*) as count FROM items WHERE type = 'idea'").get().count;
+export function getStats(user_phone) {
+  const totalTasks = db.prepare("SELECT COUNT(*) as count FROM items WHERE user_phone = ? AND type = 'task'").get(user_phone).count;
+  const totalIdeas = db.prepare("SELECT COUNT(*) as count FROM items WHERE user_phone = ? AND type = 'idea'").get(user_phone).count;
   
   const byPriority = db.prepare(`
     SELECT priority, COUNT(*) as count 
     FROM items 
-    WHERE status = 'pending' AND priority IS NOT NULL
+    WHERE user_phone = ? AND status = 'pending' AND priority IS NOT NULL
     GROUP BY priority
-  `).all();
+  `).all(user_phone);
 
   const byCategory = db.prepare(`
     SELECT category, COUNT(*) as count 
     FROM items 
-    WHERE status = 'pending' AND category IS NOT NULL
+    WHERE user_phone = ? AND status = 'pending' AND category IS NOT NULL
     GROUP BY category
     ORDER BY count DESC
     LIMIT 10
-  `).all();
+  `).all(user_phone);
 
   const byStatus = db.prepare(`
     SELECT status, COUNT(*) as count 
     FROM items 
+    WHERE user_phone = ?
     GROUP BY status
-  `).all();
+  `).all(user_phone);
 
   return {
     totalTasks,
@@ -289,15 +377,15 @@ export function getStats() {
 }
 
 /**
- * Search items by tags
+ * Search items by tags (scoped to user)
  */
-export function searchByTags(tagKeywords) {
+export function searchByTags(tagKeywords, user_phone) {
   if (!tagKeywords || tagKeywords.length === 0) {
     return [];
   }
 
-  let query = 'SELECT * FROM items WHERE 1=1';
-  const params = [];
+  let query = 'SELECT * FROM items WHERE user_phone = ?';
+  const params = [user_phone];
 
   // Build OR conditions for each tag keyword
   const tagConditions = tagKeywords.map(() => 'tags LIKE ?').join(' OR ');
@@ -315,9 +403,9 @@ export function searchByTags(tagKeywords) {
 }
 
 /**
- * Full-text search using FTS5
+ * Full-text search using FTS5 (scoped to user)
  */
-export function searchFullText(searchQuery) {
+export function searchFullText(searchQuery, user_phone) {
   if (!searchQuery || searchQuery.trim() === '') {
     return [];
   }
@@ -327,56 +415,31 @@ export function searchFullText(searchQuery) {
     SELECT items.* 
     FROM items 
     JOIN items_fts ON items.id = items_fts.rowid 
-    WHERE items_fts MATCH ? 
+    WHERE items.user_phone = ? AND items_fts MATCH ? 
     ORDER BY rank 
     LIMIT 50
   `);
 
   try {
-    return stmt.all(searchQuery);
+    return stmt.all(user_phone, searchQuery);
   } catch (error) {
     console.error('FTS search error:', error.message);
     // Fallback to simple LIKE search
-    return searchByContent(searchQuery);
+    return searchByContent(searchQuery, user_phone);
   }
 }
 
 /**
  * Fallback search using LIKE (if FTS fails)
  */
-function searchByContent(searchQuery) {
+function searchByContent(searchQuery, user_phone) {
   const stmt = db.prepare(`
     SELECT * FROM items 
-    WHERE content LIKE ? OR tags LIKE ?
+    WHERE user_phone = ? AND (content LIKE ? OR tags LIKE ?)
     ORDER BY created_at DESC 
     LIMIT 50
   `);
-  return stmt.all(`%${searchQuery}%`, `%${searchQuery}%`);
-}
-
-/**
- * Update tags for an existing item
- */
-export function updateItemTags(id, tags) {
-  const tagsString = Array.isArray(tags) ? tags.join(',') : tags;
-  const stmt = db.prepare(`
-    UPDATE items 
-    SET tags = ?, updated_at = CURRENT_TIMESTAMP 
-    WHERE id = ?
-  `);
-  return stmt.run(tagsString, id);
-}
-
-/**
- * Get items without tags (for migration)
- */
-export function getItemsWithoutTags() {
-  const stmt = db.prepare(`
-    SELECT * FROM items 
-    WHERE tags IS NULL OR tags = ''
-    ORDER BY created_at DESC
-  `);
-  return stmt.all();
+  return stmt.all(user_phone, `%${searchQuery}%`, `%${searchQuery}%`);
 }
 
 /**

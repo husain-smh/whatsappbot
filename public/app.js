@@ -4,19 +4,48 @@ let allCategories = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  loadStats();
-  loadCategories();
-  loadItems();
-  checkBotStatus();
-  setupEventListeners();
-  
-  // Auto-refresh every 30 seconds
-  setInterval(() => {
+  // Check auth first
+  checkAuth().then(isAuthenticated => {
+    if (!isAuthenticated) {
+      window.location.href = '/login';
+      return;
+    }
+    
     loadStats();
+    loadCategories();
     loadItems();
     checkBotStatus();
-  }, 30000);
+    setupEventListeners();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+      loadStats();
+      loadItems();
+      checkBotStatus();
+    }, 30000);
+  });
 });
+
+// Check authentication status
+async function checkAuth() {
+  try {
+    const response = await fetch('/auth/status');
+    const data = await response.json();
+    
+    if (data.authenticated) {
+      // Update user info in header
+      const userInfo = document.getElementById('user-info');
+      if (userInfo && data.name) {
+        userInfo.textContent = `Welcome, ${data.name}`;
+      }
+    }
+    
+    return data.authenticated;
+  } catch (error) {
+    console.error('Auth check error:', error);
+    return false;
+  }
+}
 
 // Setup event listeners
 function setupEventListeners() {
@@ -31,6 +60,28 @@ function setupEventListeners() {
     loadItems();
     checkBotStatus();
   });
+  
+  // Logout button
+  const logoutBtn = document.getElementById('btn-logout');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', logout);
+  }
+}
+
+// Logout function
+async function logout() {
+  try {
+    const response = await fetch('/auth/logout', {
+      method: 'POST'
+    });
+    const data = await response.json();
+    
+    if (data.success) {
+      window.location.href = '/login';
+    }
+  } catch (error) {
+    console.error('Logout error:', error);
+  }
 }
 
 // Debounce helper
@@ -185,9 +236,6 @@ function createItemCard(item) {
     context = {};
   }
   
-  // Parse tags
-  const tags = item.tags ? item.tags.split(',').filter(t => t.trim()) : [];
-  
   // Format deadline
   let deadlineHTML = '';
   if (item.deadline) {
@@ -223,17 +271,12 @@ function createItemCard(item) {
   
   card.innerHTML = `
     <div class="item-header">
-      <span class="badge item-type ${item.type}">${item.type}</span>
-      ${item.priority ? `<span class="badge item-priority ${item.priority}">${item.priority}</span>` : ''}
-      <span class="badge item-status ${item.status}">${item.status}</span>
-      ${item.category ? `<span class="badge item-category">${item.category}</span>` : ''}
+      <span class="item-type ${item.type}">${item.type}</span>
+      ${item.priority ? `<span class="item-priority ${item.priority}">${item.priority}</span>` : ''}
+      ${item.category ? `<span class="item-category">🏷️ ${item.category}</span>` : ''}
+      <span class="item-status ${item.status}">${item.status}</span>
     </div>
     <div class="item-content">${escapeHtml(item.content)}</div>
-    ${tags.length > 0 ? `
-      <div class="item-tags">
-        ${tags.map(tag => `<span class="tag-pill" data-tag="${escapeHtml(tag.trim())}">${escapeHtml(tag.trim())}</span>`).join('')}
-      </div>
-    ` : ''}
     <div class="item-meta">
       <span>📅 ${createdDate}</span>
       ${deadlineHTML}
@@ -241,27 +284,7 @@ function createItemCard(item) {
     </div>
   `;
   
-  // Add click handlers for tags
-  const tagElements = card.querySelectorAll('.tag-pill');
-  tagElements.forEach(tagEl => {
-    tagEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const tag = tagEl.getAttribute('data-tag');
-      searchByTag(tag);
-    });
-  });
-  
   return card;
-}
-
-// Search by tag (click handler)
-function searchByTag(tag) {
-  const searchInput = document.getElementById('filter-search');
-  searchInput.value = tag;
-  loadItems();
-  
-  // Scroll to top to see results
-  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // Escape HTML

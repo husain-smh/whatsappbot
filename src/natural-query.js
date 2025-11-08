@@ -16,23 +16,23 @@ function getOpenAIClient() {
 
 /**
  * Handle natural language queries using GPT with smart filtering
- * Instead of loading ALL items, first analyze query and filter database
+ * SCOPED TO USER - Only searches user's own data!
  */
-export async function handleNaturalQuery(query) {
-  console.log(`   💬 [NATURAL QUERY] Processing: "${query}"`);
+export async function handleNaturalQuery(query, user_phone) {
+  console.log(`   💬 [NATURAL QUERY] Processing: "${query}" for user: ${user_phone}`);
   
   try {
     // STEP 1: Analyze query to extract filters and keywords
     const analysis = await analyzeQuery(query);
     console.log(`   💬 [NATURAL QUERY] Analysis complete - Type: ${analysis.searchType}`);
     
-    // STEP 2: Get filtered items based on search type
+    // STEP 2: Get filtered items based on search type (SCOPED TO USER)
     let relevantItems = [];
     
     if (analysis.searchType === 'structural') {
       // Use SQL filters for structural queries
       console.log(`   💬 [NATURAL QUERY] Using SQL filters`);
-      relevantItems = getItems({
+      relevantItems = getItems(user_phone, {
         ...analysis.filters,
         limit: analysis.limit || 50
       });
@@ -41,16 +41,16 @@ export async function handleNaturalQuery(query) {
       // Use tag/keyword search for conceptual queries
       console.log(`   💬 [NATURAL QUERY] Using tag/keyword search: ${analysis.keywords.join(', ')}`);
       
-      // First try tag search
+      // First try tag search (SCOPED TO USER)
       if (analysis.keywords && analysis.keywords.length > 0) {
-        relevantItems = searchByTags(analysis.keywords);
+        relevantItems = searchByTags(analysis.keywords, user_phone);
       }
       
-      // If no results, try full-text search
+      // If no results, try full-text search (SCOPED TO USER)
       if (relevantItems.length === 0 && analysis.keywords.length > 0) {
         console.log(`   💬 [NATURAL QUERY] No tag results, trying full-text search`);
         const ftsQuery = analysis.keywords.join(' OR ');
-        relevantItems = searchFullText(ftsQuery);
+        relevantItems = searchFullText(ftsQuery, user_phone);
       }
       
       // Apply additional filters if present
@@ -68,15 +68,15 @@ export async function handleNaturalQuery(query) {
       // Hybrid: combine both approaches
       console.log(`   💬 [NATURAL QUERY] Using hybrid search`);
       
-      // Start with structural filters
-      let structuralResults = getItems({
+      // Start with structural filters (SCOPED TO USER)
+      let structuralResults = getItems(user_phone, {
         ...analysis.filters,
         limit: analysis.limit || 100
       });
       
-      // Refine with keyword search if keywords present
+      // Refine with keyword search if keywords present (SCOPED TO USER)
       if (analysis.keywords && analysis.keywords.length > 0) {
-        const keywordResults = searchByTags(analysis.keywords);
+        const keywordResults = searchByTags(analysis.keywords, user_phone);
         const keywordIds = new Set(keywordResults.map(item => item.id));
         
         // Prioritize items that match both
@@ -148,8 +148,8 @@ Answer the user's question naturally. Be specific and reference the actual tasks
   } catch (error) {
     console.error('   ❌ [NATURAL QUERY] Error:', error.message);
     
-    // Fallback to simple keyword search
-    return fallbackKeywordSearch(query, getItems({ limit: 100 }));
+    // Fallback to simple keyword search (SCOPED TO USER)
+    return fallbackKeywordSearch(query, getItems(user_phone, { limit: 100 }));
   }
 }
 
@@ -182,4 +182,3 @@ function fallbackKeywordSearch(query, items) {
   
   return response;
 }
-

@@ -9,8 +9,13 @@
 <body>
   <div class="container">
     <header>
-      <h1>📋 WhatsApp Task Bot</h1>
-      <p class="subtitle">Your AI-powered task and idea tracker</p>
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+        <div>
+          <h1>📋 WhatsApp Task Bot</h1>
+          <p class="subtitle" id="user-info">Your AI-powered task and idea tracker</p>
+        </div>
+        <button id="btn-logout" class="btn-logout">Logout</button>
+      </div>
       <div id="bot-status" class="status-badge">
         <span class="status-dot"></span>
         <span class="status-text">Checking...</span>

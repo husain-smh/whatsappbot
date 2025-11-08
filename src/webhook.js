@@ -1,6 +1,6 @@
 import twilio from 'twilio';
 import { processMessage } from './ai-processor.js';
-import { saveItem } from './database.js';
+import { saveItem, getUserByPhone, autoRegisterUser } from './database.js';
 import { handleNaturalQuery } from './natural-query.js';
 
 // Initialize Twilio client
@@ -20,6 +20,7 @@ const BOT_PREFIX = '[BOT] ';
 
 /**
  * Handle incoming WhatsApp message webhook from Twilio
+ * SIMPLE VERSION - No sessions, just DB lookup!
  */
 export async function handleIncomingMessage(req, res) {
   const startTime = Date.now();
@@ -30,21 +31,65 @@ export async function handleIncomingMessage(req, res) {
     
     const { From, To, Body, MessageSid, NumMedia } = req.body;
     
-    // Read env variable at runtime (after dotenv has loaded)
-    const MY_WHATSAPP = process.env.MY_WHATSAPP_NUMBER;
-    
     console.log(`   📱 From: ${From}`);
     console.log(`   📱 To: ${To}`);
     console.log(`   📝 Body: "${Body?.substring(0, 50)}${Body?.length > 50 ? '...' : ''}"`);
     console.log(`   🆔 MessageSid: ${MessageSid}`);
     
-    // PRIVACY: Only process messages from YOUR number
-    if (From !== MY_WHATSAPP) {
-      console.log(`⏭️  [WEBHOOK] Not from my number (expected: ${MY_WHATSAPP}), ignoring`);
+    // SIMPLE: Just check if user exists in database
+    let user = getUserByPhone(From);
+    let welcomeMessage = null;
+    
+    if (!user) {
+      console.log(`📝 [WEBHOOK] New user detected: ${From} - Auto-registering...`);
+      
+      // Auto-register the user
+      const newUser = autoRegisterUser(From);
+      
+      if (newUser) {
+        user = {
+          phone_number: newUser.phone_number,
+          name: newUser.name,
+          status: 'active'
+        };
+        
+        // Prepare welcome message with dashboard credentials
+        welcomeMessage = `[BOT] 🎉 Welcome to Task Bot!
+
+You've been automatically registered.
+
+📊 *Dashboard Access:*
+• URL: http://localhost:3000/login
+• Phone: ${newUser.phone_number}
+• Password: ${newUser.password}
+
+💡 You can now send me tasks and ideas, and I'll organize them for you!
+
+Try: "Add task: Buy groceries by tomorrow"`;
+        
+        console.log(`✓ [WEBHOOK] User auto-registered: ${user.name}`);
+      } else {
+        console.log(`❌ [WEBHOOK] Failed to auto-register user`);
+        await sendWhatsAppMessage(From, '[BOT] ❌ Registration failed. Please try again.');
+        return res.status(200).send('OK');
+      }
+    }
+    
+    // Check if user is active
+    if (user.status !== 'active') {
+      console.log(`⏭️  [WEBHOOK] User inactive: ${From}`);
+      await sendWhatsAppMessage(From, '[BOT] ❌ Your account is inactive. Please contact the administrator.');
       return res.status(200).send('OK');
     }
     
-    console.log('✓ [WEBHOOK] Message is from authorized number');
+    console.log(`✓ [WEBHOOK] Message from user: ${user.name} (${From})`);
+    
+    // If this is a new user, send welcome message first
+    if (welcomeMessage) {
+      console.log('📤 [WEBHOOK] Sending welcome message with credentials...');
+      await sendWhatsAppMessage(From, welcomeMessage);
+      console.log('✓ [WEBHOOK] Welcome message sent');
+    }
     
     // Ignore media messages
     if (NumMedia && parseInt(NumMedia) > 0) {
@@ -70,7 +115,7 @@ export async function handleIncomingMessage(req, res) {
     
     // Prepare context
     const context = {
-      sender: 'You',
+      sender: user.name,
       timestamp: new Date().toISOString(),
       messageId: MessageSid,
       from: From
@@ -94,13 +139,14 @@ export async function handleIncomingMessage(req, res) {
     
     if (analysis.type === 'query') {
       console.log('🔍 [WEBHOOK] Type: QUERY - Generating response...');
-      responseText = BOT_PREFIX + await handleNaturalQuery(messageText);
+      responseText = BOT_PREFIX + await handleNaturalQuery(messageText, From);
       console.log(`✓ [WEBHOOK] Query response generated (${responseText.length} chars)`);
       
     } else if (analysis.type === 'task' || analysis.type === 'idea') {
       console.log(`📝 [WEBHOOK] Type: ${analysis.type.toUpperCase()} - Saving to database...`);
       
       const itemId = saveItem({
+        user_phone: From,
         type: analysis.type,
         content: analysis.content || messageText,
         priority: analysis.priority,
@@ -146,8 +192,8 @@ export async function handleIncomingMessage(req, res) {
     // Try to send error notification
     try {
       const { From } = req.body;
-      const MY_WHATSAPP = process.env.MY_WHATSAPP_NUMBER;
-      if (From === MY_WHATSAPP) {
+      const user = getUserByPhone(From);
+      if (user) {
         await sendWhatsAppMessage(From, '[BOT] ❌ Sorry, an error occurred processing your message. Please try again.');
       }
     } catch (notifyError) {
@@ -228,4 +274,3 @@ export function verifyTwilioSignature(req, res, next) {
     return next(); // In development, proceed even if verification fails
   }
 }
-

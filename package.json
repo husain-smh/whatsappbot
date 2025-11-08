@@ -7,21 +7,18 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node src/index.js",
-    "migrate-schema": "node src/migrate-schema.js",
-    "migrate-tags": "node src/migrate-tags.js",
-    "test-queries": "node src/test-queries.js",
-    "cleanup-bot-responses": "node src/cleanup-bot-responses.js",
-    "reset-database": "node src/reset-database.js"
+    "migrate-multiuser": "node src/migrate-multiuser.js"
   },
   "keywords": ["whatsapp", "bot", "task-management", "ai"],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "twilio": "^5.3.5",
-    "openai": "^4.67.3",
     "better-sqlite3": "^11.5.0",
+    "dotenv": "^16.4.5",
     "express": "^4.21.1",
-    "dotenv": "^16.4.5"
+    "express-session": "^1.18.2",
+    "openai": "^4.67.3",
+    "twilio": "^5.3.5"
   }
 }
 

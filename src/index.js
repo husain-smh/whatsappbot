@@ -6,6 +6,14 @@ import { startServer } from './server.js';
 // On Railway/production, variables are injected directly
 dotenv.config();
 
+// Debug: Log available environment variables (without exposing values)
+console.log('🔍 Checking environment variables...');
+console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? '✓ Found' : '❌ Missing');
+console.log('TWILIO_ACCOUNT_SID:', process.env.TWILIO_ACCOUNT_SID ? '✓ Found' : '❌ Missing');
+console.log('TWILIO_AUTH_TOKEN:', process.env.TWILIO_AUTH_TOKEN ? '✓ Found' : '❌ Missing');
+console.log('MY_WHATSAPP_NUMBER:', process.env.MY_WHATSAPP_NUMBER ? '✓ Found' : '❌ Missing');
+console.log('');
+
 // Check required environment variables
 if (!process.env.OPENAI_API_KEY) {
   console.error('❌ Error: OPENAI_API_KEY not found');
