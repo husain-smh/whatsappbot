@@ -132,17 +132,51 @@ Try: "Add task: Buy groceries by tomorrow"`;
       return res.status(200).send('OK');
     }
     
-    console.log(`✓ [WEBHOOK] Valid analysis (type: ${analysis.type}, confidence: ${analysis.confidence})`);
-    
     // Handle based on type
     let responseText = '';
     
-    if (analysis.type === 'query') {
+    // MULTI-INTENT: Process multiple items
+    if (analysis.isMultiIntent && analysis.items && analysis.items.length > 0) {
+      console.log(`📋 [WEBHOOK] MULTI-INTENT: Processing ${analysis.items.length} items (confidence: ${analysis.confidence})`);
+      
+      const savedItems = [];
+      
+      for (let i = 0; i < analysis.items.length; i++) {
+        const item = analysis.items[i];
+        console.log(`  📝 [${i + 1}/${analysis.items.length}] Saving ${item.type}: ${item.content.substring(0, 40)}...`);
+        
+        const itemId = saveItem({
+          user_phone: From,
+          type: item.type,
+          content: item.content,
+          priority: item.priority,
+          category: item.category,
+          deadline: item.deadline,
+          tags: item.tags,
+          context: JSON.stringify(context)
+        });
+        
+        savedItems.push({
+          id: itemId,
+          ...item
+        });
+        
+        console.log(`  ✓ Saved (ID: ${itemId})`);
+      }
+      
+      console.log(`✓ [WEBHOOK] Saved all ${savedItems.length} items to database`);
+      responseText = BOT_PREFIX + formatBulkConfirmation(savedItems);
+      
+    } 
+    // SINGLE INTENT: Handle query
+    else if (analysis.type === 'query') {
       console.log('🔍 [WEBHOOK] Type: QUERY - Generating response...');
       responseText = BOT_PREFIX + await handleNaturalQuery(messageText, From);
       console.log(`✓ [WEBHOOK] Query response generated (${responseText.length} chars)`);
       
-    } else if (analysis.type === 'task' || analysis.type === 'idea') {
+    } 
+    // SINGLE INTENT: Handle task or idea
+    else if (analysis.type === 'task' || analysis.type === 'idea') {
       console.log(`📝 [WEBHOOK] Type: ${analysis.type.toUpperCase()} - Saving to database...`);
       
       const itemId = saveItem({
@@ -244,6 +278,47 @@ function formatConfirmation(analysis, itemId) {
 
   message += `\nType "show tasks" or "list ideas" to see your items`;
 
+  return message;
+}
+
+/**
+ * Format bulk confirmation message for multiple items
+ */
+function formatBulkConfirmation(savedItems) {
+  // Count by type
+  const taskCount = savedItems.filter(item => item.type === 'task').length;
+  const ideaCount = savedItems.filter(item => item.type === 'idea').length;
+  
+  // Create summary line
+  const summary = [];
+  if (taskCount > 0) summary.push(`${taskCount} task${taskCount > 1 ? 's' : ''}`);
+  if (ideaCount > 0) summary.push(`${ideaCount} idea${ideaCount > 1 ? 's' : ''}`);
+  
+  let message = `Saved ${summary.join(' and ')}!\n\n`;
+  
+  // List each item with details
+  savedItems.forEach((item, idx) => {
+    const typeLabel = item.type === 'task' ? 'TASK' : 'IDEA';
+    message += `${idx + 1}. [${typeLabel}] *${item.content}*\n`;
+    message += `   ID: ${item.id}`;
+    
+    if (item.priority) {
+      message += ` | Priority: ${item.priority}`;
+    }
+    
+    if (item.category) {
+      message += ` | ${item.category}`;
+    }
+    
+    if (item.deadline) {
+      message += `\n   Deadline: ${item.deadline}`;
+    }
+    
+    message += '\n\n';
+  });
+  
+  message += `Type "show tasks" or "list ideas" to see all your items`;
+  
   return message;
 }
 
