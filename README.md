@@ -5,6 +5,7 @@ AI-powered WhatsApp bot that helps you capture, categorize, and manage tasks and
 ## Features
 
 - 📱 Message yourself on WhatsApp to capture tasks/ideas
+- 🎤 **Voice note support** - Just speak your tasks, no typing needed
 - 🤖 AI-powered categorization with GPT-4o-mini
 - 🏷️ Dynamic categories (personal, interns, identity labs, etc.)
 - 🔍 Natural language queries ("show high priority tasks")
@@ -158,12 +159,20 @@ You → Twilio: "Task: Finish presentation by Friday"
 
 ### Sending Tasks/Ideas
 
-Message your Twilio WhatsApp number naturally:
+Message your Twilio WhatsApp number naturally - either by **typing** or **voice note**:
+
+**Text messages:**
 - `"Finish the presentation for interns by Friday"`
 - `"Idea: build a dashboard for identity labs metrics"`
 - `"Call the vendor tomorrow - high priority"`
 
+**Voice notes (NEW!):**
+- 🎤 Hold the mic button and say: *"Hey, remind me to buy groceries tomorrow and call mom about the dinner plans"*
+- 🎤 *"I have an idea - what if we add a dark mode to the dashboard?"*
+- 🎤 *"Show me all my high priority tasks"*
+
 The bot will automatically:
+- **Transcribe voice notes** using OpenAI Whisper (if you sent audio)
 - Detect if it's a task or idea
 - Extract priority (high/medium/low)
 - Identify category
@@ -192,12 +201,15 @@ Open your browser to: `http://localhost:3000` (or your deployed URL)
 
 - **Twilio Sandbox**: $0 (free forever for personal use)
 - **AI Processing**: ~$1-2/month for moderate use (GPT-4o-mini)
+- **Voice Transcription**: ~$0.006/minute ($0.15-0.30/month for ~50 voice notes)
 - **Hosting**: 
   - Local: Free
   - Railway: $0 (free tier) to $5/month
   - Render: $0 (free tier)
 
-**Total: ~$1-7/month** (mostly AI, Twilio is free)
+**Total: ~$1.50-7.50/month** (mostly AI, Twilio is free)
+
+**Note:** Voice notes add minimal cost - even 100 voice notes/month is only ~$0.30-0.60.
 
 ## Deployment to Railway
 
@@ -362,7 +374,7 @@ If you're upgrading from the old version:
 - Mark tasks as completed via WhatsApp
 - Deadline reminders (proactive messages)
 - Export functionality
-- Rich media support (images, voice notes)
+- Image OCR support (extract tasks from photos)
 - Multiple user support
 
 ## FAQ
@@ -372,6 +384,12 @@ A: Yes! Sandbox works perfectly for personal use.
 
 **Q: Is this free?**  
 A: Twilio sandbox is free. You only pay for OpenAI (~$1-2/month) and hosting (can be free).
+
+**Q: Do voice notes work?**  
+A: Yes! Just send a voice note like you would to any WhatsApp contact. The bot transcribes it using OpenAI Whisper and processes it like a text message. Cost: ~$0.006/minute of audio (very cheap).
+
+**Q: What languages are supported for voice notes?**  
+A: OpenAI Whisper supports 50+ languages, but the bot is optimized for English. You can modify `src/transcription.js` to remove the language parameter for auto-detection.
 
 **Q: Can I use this for my team?**  
 A: Sandbox is single-user. For teams, upgrade to Twilio WhatsApp Business API ($0.005/message after 1,000).
@@ -390,7 +408,7 @@ MIT
 
 Built with:
 - [Twilio](https://www.twilio.com) - WhatsApp API
-- [OpenAI](https://openai.com) - GPT-4o-mini
+- [OpenAI](https://openai.com) - GPT-4o-mini & Whisper
 - [SQLite](https://www.sqlite.org) - Database
 - [Express](https://expressjs.com) - Web server
 

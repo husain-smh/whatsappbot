@@ -2,6 +2,7 @@ import twilio from 'twilio';
 import { processMessage } from './ai-processor.js';
 import { saveItem, getUserByPhone, autoRegisterUser } from './database.js';
 import { handleNaturalQuery } from './natural-query.js';
+import { transcribeAudio } from './transcription.js';
 
 // Initialize Twilio client
 let twilioClient = null;
@@ -92,19 +93,45 @@ Try: "Add task: Buy groceries by tomorrow"`;
       console.log('✓ [WEBHOOK] Welcome message sent');
     }
     
-    // Ignore media messages
+    // Handle media messages (voice notes)
+    let messageText = '';
+    
     if (NumMedia && parseInt(NumMedia) > 0) {
-      console.log('⏭️  [WEBHOOK] Media message detected, ignoring');
-      return res.status(200).send('OK');
+      const mediaContentType = req.body.MediaContentType0;
+      const mediaUrl = req.body.MediaUrl0;
+      
+      console.log(`📎 [WEBHOOK] Media message detected: ${mediaContentType}`);
+      
+      // Check if it's an audio message (voice note)
+      if (mediaContentType && mediaContentType.startsWith('audio/')) {
+        console.log('🎤 [WEBHOOK] Voice note detected - transcribing...');
+        
+        // Transcribe the audio
+        const transcribedText = await transcribeAudio(mediaUrl);
+        
+        if (transcribedText) {
+          console.log(`✓ [WEBHOOK] Transcription successful: "${transcribedText.substring(0, 50)}${transcribedText.length > 50 ? '...' : ''}"`);
+          messageText = transcribedText;
+          // Continue with normal processing flow below
+        } else {
+          console.log('❌ [WEBHOOK] Transcription failed');
+          await sendWhatsAppMessage(From, '[BOT] ❌ Sorry, I couldn\'t transcribe your voice note. Please try again or send a text message.');
+          return res.status(200).send('OK');
+        }
+      } else {
+        // Other media types (images, videos, documents) - ignore
+        console.log('⏭️  [WEBHOOK] Non-audio media detected, ignoring');
+        return res.status(200).send('OK');
+      }
+    } else {
+      // Text message - use Body
+      if (!Body || Body.trim() === '') {
+        console.log('⏭️  [WEBHOOK] Empty message, ignoring');
+        return res.status(200).send('OK');
+      }
+      
+      messageText = Body.trim();
     }
-    
-    // Ignore empty messages
-    if (!Body || Body.trim() === '') {
-      console.log('⏭️  [WEBHOOK] Empty message, ignoring');
-      return res.status(200).send('OK');
-    }
-    
-    const messageText = Body.trim();
     
     // Skip bot's own messages (prevent loops)
     if (messageText.startsWith(BOT_PREFIX)) {
