@@ -32,7 +32,7 @@ export async function handleNaturalQuery(query, user_phone) {
     if (analysis.searchType === 'structural') {
       // Use SQL filters for structural queries
       console.log(`   💬 [NATURAL QUERY] Using SQL filters`);
-      relevantItems = getItems(user_phone, {
+      relevantItems = await getItems(user_phone, {
         ...analysis.filters,
         limit: analysis.limit || 50
       });
@@ -43,14 +43,14 @@ export async function handleNaturalQuery(query, user_phone) {
       
       // First try tag search (SCOPED TO USER)
       if (analysis.keywords && analysis.keywords.length > 0) {
-        relevantItems = searchByTags(analysis.keywords, user_phone);
+        relevantItems = await searchByTags(analysis.keywords, user_phone);
       }
       
       // If no results, try full-text search (SCOPED TO USER)
       if (relevantItems.length === 0 && analysis.keywords.length > 0) {
         console.log(`   💬 [NATURAL QUERY] No tag results, trying full-text search`);
         const ftsQuery = analysis.keywords.join(' OR ');
-        relevantItems = searchFullText(ftsQuery, user_phone);
+        relevantItems = await searchFullText(ftsQuery, user_phone);
       }
       
       // Apply additional filters if present
@@ -69,14 +69,14 @@ export async function handleNaturalQuery(query, user_phone) {
       console.log(`   💬 [NATURAL QUERY] Using hybrid search`);
       
       // Start with structural filters (SCOPED TO USER)
-      let structuralResults = getItems(user_phone, {
+      let structuralResults = await getItems(user_phone, {
         ...analysis.filters,
         limit: analysis.limit || 100
       });
       
       // Refine with keyword search if keywords present (SCOPED TO USER)
       if (analysis.keywords && analysis.keywords.length > 0) {
-        const keywordResults = searchByTags(analysis.keywords, user_phone);
+        const keywordResults = await searchByTags(analysis.keywords, user_phone);
         const keywordIds = new Set(keywordResults.map(item => item.id));
         
         // Prioritize items that match both
@@ -157,7 +157,8 @@ Answer the user's question naturally. Be specific and reference the actual tasks
     console.error('   ❌ [NATURAL QUERY] Error:', error.message);
     
     // Fallback to simple keyword search (SCOPED TO USER)
-    return fallbackKeywordSearch(query, getItems(user_phone, { limit: 100 }));
+    const items = await getItems(user_phone, { limit: 100 });
+    return fallbackKeywordSearch(query, items);
   }
 }
 
