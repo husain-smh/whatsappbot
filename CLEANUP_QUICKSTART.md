@@ -35,3 +35,4 @@ That's it! The script will:
 
 See `CLEANUP_GUIDE.md` for detailed information, troubleshooting, and technical details.
 
+

@@ -244,3 +244,4 @@ Now let it run! 🚀
 
 **TL;DR:** Start your bot once. It will auto-recover from crashes. Only manual restart needed if 5 recoveries fail (very rare). Enjoy 24/7 uptime! 🎉
 
+
