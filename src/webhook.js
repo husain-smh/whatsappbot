@@ -54,12 +54,13 @@ export async function handleIncomingMessage(req, res) {
         };
         
         // Prepare welcome message with dashboard credentials
+        const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:3000';
         welcomeMessage = `[BOT] 🎉 Welcome to Task Bot!
 
 You've been automatically registered.
 
 📊 *Dashboard Access:*
-• URL: http://localhost:3000/login
+• URL: ${dashboardUrl}/login
 • Phone: ${newUser.phone_number}
 • Password: ${newUser.password}
 
