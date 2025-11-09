@@ -15,22 +15,35 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false })); // For Twilio webhook form data
 
 // Session middleware
+const sessionSecret = process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production';
+console.log(`🔐 Session secret configured: ${sessionSecret.substring(0, 10)}...`);
+
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-this-in-production',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    secure: 'auto', // Auto-detect HTTPS (works better with proxies like Railway)
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: 'lax' // Needed for proper cookie handling
+  },
+  name: 'wabot.sid' // Custom session name
 }));
 
 // Auth middleware - checks if user is logged in
 const requireAuth = (req, res, next) => {
+  console.log(`🔒 [AUTH MIDDLEWARE] Checking auth for: ${req.path}`);
+  console.log(`   Session ID: ${req.sessionID}`);
+  console.log(`   Authenticated: ${req.session?.authenticated}`);
+  console.log(`   User: ${req.session?.phone_number}`);
+  
   if (req.session && req.session.authenticated) {
+    console.log(`✓ [AUTH MIDDLEWARE] User authorized: ${req.session.name}`);
     return next();
   }
+  
+  console.log(`❌ [AUTH MIDDLEWARE] Not authenticated, redirecting to login`);
   
   // For API calls, return JSON error
   if (req.path.startsWith('/api/')) {
@@ -90,11 +103,23 @@ app.post('/auth/login', (req, res) => {
   }
   
   if (user) {
+    // Set session data
     req.session.authenticated = true;
     req.session.phone_number = user.phone_number;
     req.session.name = user.name;
-    console.log(`✓ [LOGIN] User logged in: ${user.name}`);
-    res.json({ success: true, message: 'Login successful', user: { name: user.name, phone_number: user.phone_number } });
+    
+    // Explicitly save session before responding
+    req.session.save((err) => {
+      if (err) {
+        console.error('❌ [LOGIN] Session save error:', err);
+        return res.json({ success: false, error: 'Session error. Please try again.' });
+      }
+      
+      console.log(`✓ [LOGIN] User logged in: ${user.name}`);
+      console.log(`✓ [LOGIN] Session ID: ${req.sessionID}`);
+      console.log(`✓ [LOGIN] Session saved successfully`);
+      res.json({ success: true, message: 'Login successful', user: { name: user.name, phone_number: user.phone_number } });
+    });
   } else {
     console.log('❌ [LOGIN] Authentication failed');
     res.json({ success: false, error: 'Invalid credentials' });
