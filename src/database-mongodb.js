@@ -24,6 +24,9 @@ async function connectDatabase() {
 
   try {
     console.log('📦 Connecting to MongoDB...');
+    console.log(`   URI: ${MONGODB_URI.substring(0, 30)}...`);
+    console.log(`   Database: ${DB_NAME}`);
+    
     client = new MongoClient(MONGODB_URI);
     await client.connect();
     db = client.db(DB_NAME);
@@ -39,7 +42,7 @@ async function connectDatabase() {
     
     return db;
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
+    console.error('❌ MongoDB connection error:', error.message);
     throw error;
   }
 }
@@ -109,15 +112,15 @@ export async function initializeDatabase() {
 /**
  * Get user by phone number
  */
-export function getUserByPhone(phone_number) {
-  return usersCollection.findOne({ phone_number });
+export async function getUserByPhone(phone_number) {
+  return await usersCollection.findOne({ phone_number });
 }
 
 /**
  * Get all users (for debugging)
  */
-export function getAllUsers() {
-  return usersCollection.find({ }).toArray();
+export async function getAllUsers() {
+  return await usersCollection.find({}).toArray();
 }
 
 /**
@@ -385,7 +388,7 @@ export async function deleteItem(id, user_phone) {
  * Get all categories
  */
 export async function getCategories() {
-  return categoriesCollection.find({}).toArray();
+  return await categoriesCollection.find({}).toArray();
 }
 
 /**
@@ -448,12 +451,12 @@ export async function getStats(user_phone) {
  */
 export async function searchByTags(tagKeywords, user_phone) {
   // Create regex pattern for partial matches
-  const pattern = tagKeywords.map(tag => new RegExp(tag, 'i'));
+  const patterns = tagKeywords.map(tag => new RegExp(tag, 'i'));
   
   const items = await itemsCollection
     .find({
       user_phone,
-      tags: { $in: pattern }
+      tags: { $regex: patterns[0] } // Use first pattern for now
     })
     .sort({ created_at: -1 })
     .toArray();
@@ -495,5 +498,6 @@ export async function closeDatabase() {
 // Initialize on import
 await initializeDatabase();
 
+export { db };
 export default db;
 
