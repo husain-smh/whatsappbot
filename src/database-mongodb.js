@@ -15,36 +15,67 @@ let itemsCollection;
 let categoriesCollection;
 
 /**
- * Connect to MongoDB
+ * Connect to MongoDB with retry logic
  */
 async function connectDatabase() {
   if (db) {
     return db; // Already connected
   }
 
-  try {
-    console.log('📦 Connecting to MongoDB...');
-    console.log(`   URI: ${MONGODB_URI.substring(0, 30)}...`);
-    console.log(`   Database: ${DB_NAME}`);
-    
-    client = new MongoClient(MONGODB_URI);
-    await client.connect();
-    db = client.db(DB_NAME);
-    
-    usersCollection = db.collection('users');
-    itemsCollection = db.collection('items');
-    categoriesCollection = db.collection('categories');
-    
-    console.log(`✅ Connected to MongoDB: ${DB_NAME}`);
-    
-    // Create indexes
-    await createIndexes();
-    
-    return db;
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-    throw error;
+  const maxRetries = 3;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`📦 Connecting to MongoDB (attempt ${attempt}/${maxRetries})...`);
+      console.log(`   URI: ${MONGODB_URI.substring(0, 30)}...`);
+      console.log(`   Database: ${DB_NAME}`);
+      
+      client = new MongoClient(MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000,
+        retryWrites: true,
+        maxPoolSize: 10,
+      });
+      
+      await client.connect();
+      
+      // Setup connection error handlers
+      client.on('error', (err) => {
+        console.error('❌ MongoDB connection error:', err.message);
+        db = null; // Reset connection so it will reconnect on next request
+      });
+      
+      client.on('close', () => {
+        console.log('⚠️  MongoDB connection closed');
+        db = null; // Reset connection
+      });
+      
+      db = client.db(DB_NAME);
+      
+      usersCollection = db.collection('users');
+      itemsCollection = db.collection('items');
+      categoriesCollection = db.collection('categories');
+      
+      console.log(`✅ Connected to MongoDB: ${DB_NAME}`);
+      
+      // Create indexes
+      await createIndexes();
+      
+      return db;
+    } catch (error) {
+      lastError = error;
+      console.error(`❌ MongoDB connection attempt ${attempt} failed:`, error.message);
+      
+      if (attempt < maxRetries) {
+        const delay = attempt * 1000; // Exponential backoff: 1s, 2s
+        console.log(`   Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
   }
+  
+  console.error('❌ Failed to connect to MongoDB after all retries');
+  throw lastError;
 }
 
 /**
@@ -274,18 +305,53 @@ export async function createUser(phone_number, name, password) {
 }
 
 /**
- * Save a new item (task or idea)
+ * Save a new item (task or idea) with input validation
  */
 export async function saveItem({ user_phone, type, content, priority, category, deadline, context, tags }) {
+  // Validate required fields
+  if (!user_phone || typeof user_phone !== 'string') {
+    throw new Error('user_phone is required and must be a string');
+  }
+  
+  if (!type || !['task', 'idea'].includes(type)) {
+    throw new Error('type must be either "task" or "idea"');
+  }
+  
+  if (!content || typeof content !== 'string') {
+    throw new Error('content is required and must be a string');
+  }
+  
+  // Validate optional fields
+  if (priority && !['high', 'medium', 'low'].includes(priority)) {
+    throw new Error('priority must be "high", "medium", or "low"');
+  }
+  
+  // Sanitize and limit content length
+  const sanitizedContent = content.trim().substring(0, 2000);
+  
+  if (sanitizedContent.length === 0) {
+    throw new Error('content cannot be empty');
+  }
+  
+  // Process tags: convert to array if needed
+  let processedTags = [];
+  if (tags) {
+    if (Array.isArray(tags)) {
+      processedTags = tags.map(tag => String(tag).trim().toLowerCase()).filter(tag => tag.length > 0);
+    } else if (typeof tags === 'string') {
+      processedTags = tags.split(',').map(tag => tag.trim().toLowerCase()).filter(tag => tag.length > 0);
+    }
+  }
+  
   const item = {
     user_phone,
     type,
-    content,
+    content: sanitizedContent,
     priority: priority || null,
-    category: category || null,
+    category: category ? String(category).trim() : null,
     deadline: deadline || null,
     context: context || null,
-    tags: tags || null,
+    tags: processedTags,
     status: 'pending',
     created_at: new Date(),
     updated_at: new Date()
@@ -293,8 +359,8 @@ export async function saveItem({ user_phone, type, content, priority, category, 
   
   const result = await itemsCollection.insertOne(item);
   
-  console.log(`✓ Saved ${type}: ${content.substring(0, 50)}...`);
-  if (tags) console.log(`  Tags: ${tags}`);
+  console.log(`✓ Saved ${type}: ${sanitizedContent.substring(0, 50)}...`);
+  if (processedTags.length > 0) console.log(`  Tags: ${processedTags.join(', ')}`);
   
   return {
     id: result.insertedId.toString(),
@@ -447,18 +513,24 @@ export async function getStats(user_phone) {
 }
 
 /**
- * Search by tags
+ * Search by tags (optimized for array-based tags)
  */
 export async function searchByTags(tagKeywords, user_phone) {
-  // Create regex pattern for partial matches
-  const patterns = tagKeywords.map(tag => new RegExp(tag, 'i'));
+  if (!tagKeywords || tagKeywords.length === 0) {
+    return [];
+  }
   
+  // Convert keywords to lowercase for case-insensitive matching
+  const normalizedKeywords = tagKeywords.map(tag => tag.toLowerCase());
+  
+  // Use MongoDB's $in operator for efficient array matching
   const items = await itemsCollection
     .find({
       user_phone,
-      tags: { $regex: patterns[0] } // Use first pattern for now
+      tags: { $in: normalizedKeywords }
     })
     .sort({ created_at: -1 })
+    .limit(100)
     .toArray();
   
   return items.map(item => ({

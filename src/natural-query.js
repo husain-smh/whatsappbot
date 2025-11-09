@@ -130,7 +130,13 @@ Answer the user's question naturally. Be specific and reference the actual tasks
     console.log(`   💬 [NATURAL QUERY] Calling GPT with ${relevantItems.length} filtered items...`);
     
     const client = getOpenAIClient();
-    const response = await client.chat.completions.create({
+    
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('OpenAI API timeout after 30s')), 30000)
+    );
+    
+    const apiPromise = client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
@@ -139,6 +145,8 @@ Answer the user's question naturally. Be specific and reference the actual tasks
       temperature: 0.7,
       max_tokens: 500
     });
+    
+    const response = await Promise.race([apiPromise, timeoutPromise]);
     
     const answer = response.choices[0].message.content;
     console.log(`   💬 [NATURAL QUERY] GPT responded (${answer.length} chars)`);

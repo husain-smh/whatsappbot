@@ -37,14 +37,14 @@ export async function handleIncomingMessage(req, res) {
     console.log(`   🆔 MessageSid: ${MessageSid}`);
     
     // SIMPLE: Just check if user exists in database
-    let user = getUserByPhone(From);
+    let user = await getUserByPhone(From);
     let welcomeMessage = null;
     
     if (!user) {
       console.log(`📝 [WEBHOOK] New user detected: ${From} - Auto-registering...`);
       
       // Auto-register the user
-      const newUser = autoRegisterUser(From);
+      const newUser = await autoRegisterUser(From);
       
       if (newUser) {
         user = {
@@ -146,7 +146,7 @@ Try: "Add task: Buy groceries by tomorrow"`;
         const item = analysis.items[i];
         console.log(`  📝 [${i + 1}/${analysis.items.length}] Saving ${item.type}: ${item.content.substring(0, 40)}...`);
         
-        const itemId = saveItem({
+        const result = await saveItem({
           user_phone: From,
           type: item.type,
           content: item.content,
@@ -158,11 +158,11 @@ Try: "Add task: Buy groceries by tomorrow"`;
         });
         
         savedItems.push({
-          id: itemId,
+          id: result.id,
           ...item
         });
         
-        console.log(`  ✓ Saved (ID: ${itemId})`);
+        console.log(`  ✓ Saved (ID: ${result.id})`);
       }
       
       console.log(`✓ [WEBHOOK] Saved all ${savedItems.length} items to database`);
@@ -180,7 +180,7 @@ Try: "Add task: Buy groceries by tomorrow"`;
     else if (analysis.type === 'task' || analysis.type === 'idea') {
       console.log(`📝 [WEBHOOK] Type: ${analysis.type.toUpperCase()} - Saving to database...`);
       
-      const itemId = saveItem({
+      const result = await saveItem({
         user_phone: From,
         type: analysis.type,
         content: analysis.content || messageText,
@@ -191,8 +191,8 @@ Try: "Add task: Buy groceries by tomorrow"`;
         context: JSON.stringify(context)
       });
       
-      console.log(`✓ [WEBHOOK] Saved to database (ID: ${itemId})`);
-      responseText = BOT_PREFIX + formatConfirmation(analysis, itemId);
+      console.log(`✓ [WEBHOOK] Saved to database (ID: ${result.id})`);
+      responseText = BOT_PREFIX + formatConfirmation(analysis, result.id);
       
     } else {
       console.log(`⏭️  [WEBHOOK] Type: ${analysis.type} - Not actionable, ignoring`);
@@ -227,7 +227,7 @@ Try: "Add task: Buy groceries by tomorrow"`;
     // Try to send error notification
     try {
       const { From } = req.body;
-      const user = getUserByPhone(From);
+      const user = await getUserByPhone(From);
       if (user) {
         await sendWhatsAppMessage(From, '[BOT] ❌ Sorry, an error occurred processing your message. Please try again.');
       }

@@ -98,7 +98,13 @@ Context: User has tasks and ideas saved in a personal database.
 Analyze this query and return structured filters and keywords.`;
 
     const client = getOpenAIClient();
-    const response = await client.chat.completions.create({
+    
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('OpenAI API timeout after 30s')), 30000)
+    );
+    
+    const apiPromise = client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: QUERY_ANALYSIS_PROMPT },
@@ -108,6 +114,8 @@ Analyze this query and return structured filters and keywords.`;
       max_tokens: 300,
       response_format: { type: 'json_object' }
     });
+    
+    const response = await Promise.race([apiPromise, timeoutPromise]);
 
     const analysis = JSON.parse(response.choices[0].message.content);
     console.log(`   🔍 [QUERY ROUTER] Type: ${analysis.searchType}, Keywords: ${analysis.keywords?.length || 0}`);

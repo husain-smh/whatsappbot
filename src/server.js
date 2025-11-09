@@ -1,5 +1,6 @@
 import express from 'express';
 import session from 'express-session';
+import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { getItems, getStats, getCategories, authenticateUser, authenticateByPassword } from './database.js';
@@ -82,8 +83,17 @@ app.get('/', requireAuth, (req, res) => {
  * Authentication Routes
  */
 
+// Rate limiter for login attempts
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 login attempts per window
+  message: { success: false, error: 'Too many login attempts. Please try again in 15 minutes.' },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
 // Login endpoint
-app.post('/auth/login', (req, res) => {
+app.post('/auth/login', loginLimiter, async (req, res) => {
   const { phone_number, password } = req.body;
   
   if (!password) {
@@ -95,11 +105,11 @@ app.post('/auth/login', (req, res) => {
   // Try password-only authentication first (for convenience)
   if (!phone_number || phone_number.trim() === '') {
     console.log('📱 [LOGIN] Password-only login attempt');
-    user = authenticateByPassword(password);
+    user = await authenticateByPassword(password);
   } else {
     // Authenticate with phone number + password
     console.log('📱 [LOGIN] Phone + password login attempt');
-    user = authenticateUser(phone_number, password);
+    user = await authenticateUser(phone_number, password);
   }
   
   if (user) {
@@ -145,52 +155,28 @@ app.get('/auth/status', (req, res) => {
   });
 });
 
-// Debug endpoint - check if users table exists and has users (PUBLIC for debugging)
-app.get('/debug/users', async (req, res) => {
-  try {
-    const { getAllUsers } = await import('./database.js');
-    const users = getAllUsers();
-    res.json({ 
-      success: true, 
-      userCount: users.length,
-      users: users.map(u => ({ 
-        phone: u.phone_number, 
-        name: u.name, 
-        status: u.status,
-        created_at: u.created_at,
-        last_active: u.last_active
-      }))
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Debug endpoint - test password verification (PUBLIC for debugging - REMOVE IN PRODUCTION)
-app.post('/debug/test-password', async (req, res) => {
-  try {
-    const { phone_number, password } = req.body;
-    const { getUserByPhone, verifyPassword } = await import('./database.js');
-    
-    const user = getUserByPhone(phone_number);
-    if (!user) {
-      return res.json({ success: false, error: 'User not found' });
+// Debug endpoints - ONLY available in development mode with authentication
+if (process.env.NODE_ENV === 'development') {
+  app.get('/debug/users', requireAuth, async (req, res) => {
+    try {
+      const { getAllUsers } = await import('./database.js');
+      const users = await getAllUsers();
+      res.json({ 
+        success: true, 
+        userCount: users.length,
+        users: users.map(u => ({ 
+          phone: u.phone_number, 
+          name: u.name, 
+          status: u.status,
+          created_at: u.created_at,
+          last_active: u.last_active
+        }))
+      });
+    } catch (error) {
+      res.json({ success: false, error: error.message });
     }
-    
-    const isValid = verifyPassword(password, user.password_hash);
-    
-    res.json({ 
-      success: true,
-      user: user.name,
-      passwordLength: password.length,
-      passwordPreview: `${password.substring(0, 3)}...${password.substring(password.length - 3)}`,
-      hashPreview: user.password_hash.substring(0, 50) + '...',
-      isValid: isValid
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
+  });
+}
 
 /**
  * Twilio Webhook Route (PUBLIC - no auth required)
@@ -204,7 +190,7 @@ app.post('/webhook/whatsapp', handleIncomingMessage);
  */
 
 // Get all items with optional filters
-app.get('/api/items', requireAuth, (req, res) => {
+app.get('/api/items', requireAuth, async (req, res) => {
   try {
     const user_phone = req.session.phone_number;
     
@@ -222,32 +208,34 @@ app.get('/api/items', requireAuth, (req, res) => {
       if (filters[key] === undefined || filters[key] === '') delete filters[key];
     });
 
-    const items = getItems(user_phone, filters);
+    const items = await getItems(user_phone, filters);
     res.json({ success: true, items, count: items.length });
   } catch (error) {
     console.error('API Error (items):', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Failed to load items. Please try again.' });
   }
 });
 
 // Get statistics
-app.get('/api/stats', requireAuth, (req, res) => {
+app.get('/api/stats', requireAuth, async (req, res) => {
   try {
     const user_phone = req.session.phone_number;
-    const stats = getStats(user_phone);
+    const stats = await getStats(user_phone);
     res.json({ success: true, stats });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('API Error (stats):', error);
+    res.status(500).json({ success: false, error: 'Failed to load statistics. Please try again.' });
   }
 });
 
 // Get all categories
-app.get('/api/categories', requireAuth, (req, res) => {
+app.get('/api/categories', requireAuth, async (req, res) => {
   try {
-    const categories = getCategories();
+    const categories = await getCategories();
     res.json({ success: true, categories });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('API Error (categories):', error);
+    res.status(500).json({ success: false, error: 'Failed to load categories. Please try again.' });
   }
 });
 
@@ -267,9 +255,33 @@ app.get('/api/status', requireAuth, (req, res) => {
   }
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ success: true, status: 'healthy', timestamp: new Date().toISOString() });
+// Health check with database status
+app.get('/api/health', async (req, res) => {
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    database: 'unknown',
+    uptime: process.uptime()
+  };
+  
+  try {
+    // Try to ping MongoDB
+    const { db } = await import('./database.js');
+    if (db) {
+      await db.admin().ping();
+      health.database = 'connected';
+    } else {
+      health.database = 'not_initialized';
+      health.status = 'degraded';
+    }
+  } catch (error) {
+    console.error('Health check - database error:', error.message);
+    health.database = 'disconnected';
+    health.status = 'unhealthy';
+    return res.status(503).json(health);
+  }
+  
+  res.json(health);
 });
 
 /**

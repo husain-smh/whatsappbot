@@ -16,15 +16,51 @@ document.addEventListener('DOMContentLoaded', () => {
     loadItems();
     checkBotStatus();
     setupEventListeners();
+    setupSmartRefresh();
+  });
+});
+
+/**
+ * Smart auto-refresh: only when tab is visible
+ */
+function setupSmartRefresh() {
+  let refreshInterval;
+  
+  function startRefresh() {
+    if (refreshInterval) return; // Already running
     
-    // Auto-refresh every 30 seconds
-    setInterval(() => {
+    refreshInterval = setInterval(() => {
+      if (!document.hidden) {
+        loadStats();
+        loadItems();
+        checkBotStatus();
+      }
+    }, 30000); // 30 seconds
+  }
+  
+  function stopRefresh() {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
+  }
+  
+  // Handle visibility changes
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopRefresh();
+    } else {
+      // Refresh immediately when tab becomes visible
       loadStats();
       loadItems();
       checkBotStatus();
-    }, 30000);
+      startRefresh();
+    }
   });
-});
+  
+  // Start initial refresh cycle
+  startRefresh();
+}
 
 // Check authentication status
 async function checkAuth() {
