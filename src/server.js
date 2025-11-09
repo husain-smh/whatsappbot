@@ -2,7 +2,7 @@ import express from 'express';
 import session from 'express-session';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { getItems, getStats, getCategories, authenticateUser } from './database.js';
+import { getItems, getStats, getCategories, authenticateUser, authenticateByPassword } from './database.js';
 import { handleIncomingMessage } from './webhook.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,19 +73,30 @@ app.get('/', requireAuth, (req, res) => {
 app.post('/auth/login', (req, res) => {
   const { phone_number, password } = req.body;
   
-  if (!phone_number || !password) {
-    return res.json({ success: false, error: 'Phone number and password are required' });
+  if (!password) {
+    return res.json({ success: false, error: 'Password is required' });
   }
   
-  // Authenticate user from database
-  const user = authenticateUser(phone_number, password);
+  let user = null;
+  
+  // Try password-only authentication first (for convenience)
+  if (!phone_number || phone_number.trim() === '') {
+    console.log('📱 [LOGIN] Password-only login attempt');
+    user = authenticateByPassword(password);
+  } else {
+    // Authenticate with phone number + password
+    console.log('📱 [LOGIN] Phone + password login attempt');
+    user = authenticateUser(phone_number, password);
+  }
   
   if (user) {
     req.session.authenticated = true;
     req.session.phone_number = user.phone_number;
     req.session.name = user.name;
+    console.log(`✓ [LOGIN] User logged in: ${user.name}`);
     res.json({ success: true, message: 'Login successful', user: { name: user.name, phone_number: user.phone_number } });
   } else {
+    console.log('❌ [LOGIN] Authentication failed');
     res.json({ success: false, error: 'Invalid credentials' });
   }
 });
@@ -107,6 +118,53 @@ app.get('/auth/status', (req, res) => {
     phone_number: req.session ? req.session.phone_number : null,
     name: req.session ? req.session.name : null
   });
+});
+
+// Debug endpoint - check if users table exists and has users (PUBLIC for debugging)
+app.get('/debug/users', async (req, res) => {
+  try {
+    const { getAllUsers } = await import('./database.js');
+    const users = getAllUsers();
+    res.json({ 
+      success: true, 
+      userCount: users.length,
+      users: users.map(u => ({ 
+        phone: u.phone_number, 
+        name: u.name, 
+        status: u.status,
+        created_at: u.created_at,
+        last_active: u.last_active
+      }))
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint - test password verification (PUBLIC for debugging - REMOVE IN PRODUCTION)
+app.post('/debug/test-password', async (req, res) => {
+  try {
+    const { phone_number, password } = req.body;
+    const { getUserByPhone, verifyPassword } = await import('./database.js');
+    
+    const user = getUserByPhone(phone_number);
+    if (!user) {
+      return res.json({ success: false, error: 'User not found' });
+    }
+    
+    const isValid = verifyPassword(password, user.password_hash);
+    
+    res.json({ 
+      success: true,
+      user: user.name,
+      passwordLength: password.length,
+      passwordPreview: `${password.substring(0, 3)}...${password.substring(password.length - 3)}`,
+      hashPreview: user.password_hash.substring(0, 50) + '...',
+      isValid: isValid
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
 });
 
 /**

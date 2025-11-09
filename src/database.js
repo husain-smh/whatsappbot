@@ -123,26 +123,46 @@ export function getUserByPhone(phone_number) {
 }
 
 /**
+ * Get all users (for debugging)
+ */
+export function getAllUsers() {
+  const stmt = db.prepare('SELECT phone_number, name, status, created_at, last_active FROM users');
+  return stmt.all();
+}
+
+/**
  * Authenticate user (for dashboard login)
  */
 export function authenticateUser(phone_number, password) {
+  console.log(`🔐 [AUTH] Attempting authentication for: ${phone_number}`);
+  
   const user = getUserByPhone(phone_number);
   
   if (!user) {
+    console.log(`❌ [AUTH] User not found: ${phone_number}`);
     return null;
   }
+  
+  console.log(`✓ [AUTH] User found: ${user.name}`);
   
   if (user.status !== 'active') {
-    console.log(`User ${phone_number} is inactive`);
+    console.log(`❌ [AUTH] User ${phone_number} is inactive`);
     return null;
   }
   
+  console.log(`🔐 [AUTH] Verifying password...`);
+  console.log(`   Password length: ${password.length}`);
+  console.log(`   Hash format: ${user.password_hash.substring(0, 20)}...`);
+  
   const isValid = verifyPassword(password, user.password_hash);
+  
+  console.log(`🔐 [AUTH] Password valid: ${isValid}`);
   
   if (isValid) {
     // Update last_active timestamp
     db.prepare('UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE phone_number = ?')
       .run(phone_number);
+    console.log(`✓ [AUTH] Authentication successful for ${user.name}`);
     return {
       phone_number: user.phone_number,
       name: user.name,
@@ -150,6 +170,38 @@ export function authenticateUser(phone_number, password) {
     };
   }
   
+  console.log(`❌ [AUTH] Password verification failed`);
+  return null;
+}
+
+/**
+ * Authenticate by password only (for single-user convenience)
+ */
+export function authenticateByPassword(password) {
+  console.log(`🔐 [AUTH] Attempting password-only authentication`);
+  
+  // Get all active users
+  const users = db.prepare('SELECT * FROM users WHERE status = ?').all('active');
+  
+  console.log(`   Found ${users.length} active user(s)`);
+  
+  // Try to authenticate with each user
+  for (const user of users) {
+    const isValid = verifyPassword(password, user.password_hash);
+    if (isValid) {
+      // Update last_active timestamp
+      db.prepare('UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE phone_number = ?')
+        .run(user.phone_number);
+      console.log(`✓ [AUTH] Password-only authentication successful for ${user.name}`);
+      return {
+        phone_number: user.phone_number,
+        name: user.name,
+        status: user.status
+      };
+    }
+  }
+  
+  console.log(`❌ [AUTH] Password-only authentication failed`);
   return null;
 }
 
