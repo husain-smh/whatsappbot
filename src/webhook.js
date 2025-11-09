@@ -263,21 +263,42 @@ async function sendWhatsAppMessage(to, text) {
  * Format confirmation message
  */
 function formatConfirmation(analysis, itemId) {
-  let message = `Saved as *${analysis.type}* (ID: ${itemId})\n\n`;
-  
-  if (analysis.priority) {
-    message += `Priority: ${analysis.priority}\n`;
-  }
-  
-  if (analysis.category) {
-    message += `Category: ${analysis.category}\n`;
-  }
-  
-  if (analysis.deadline) {
-    message += `Deadline: ${analysis.deadline}\n`;
-  }
+  // Helper to format deadline naturally
+  const formatDeadline = (deadline) => {
+    if (!deadline) return null;
+    try {
+      const date = new Date(deadline);
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    } catch {
+      return deadline;
+    }
+  };
 
-  message += `\nType "show tasks" or "list ideas" to see your items`;
+  // Build natural language message
+  const typeLabel = analysis.type === 'task' ? 'task' : 'idea';
+  let message = `Got it! I've saved this as `;
+  
+  // Add priority if exists
+  if (analysis.priority && analysis.priority !== 'medium') {
+    message += `a *${analysis.priority} priority* `;
+  } else {
+    message += `a `;
+  }
+  
+  // Add category if exists
+  if (analysis.category) {
+    message += `${analysis.category} `;
+  }
+  
+  message += typeLabel;
+  
+  // Add deadline if exists
+  if (analysis.deadline) {
+    const formattedDate = formatDeadline(analysis.deadline);
+    message += `, due by ${formattedDate}`;
+  }
+  
+  message += `. (ID: ${itemId})`;
 
   return message;
 }
@@ -286,6 +307,17 @@ function formatConfirmation(analysis, itemId) {
  * Format bulk confirmation message for multiple items
  */
 function formatBulkConfirmation(savedItems) {
+  // Helper to format deadline naturally
+  const formatDeadline = (deadline) => {
+    if (!deadline) return null;
+    try {
+      const date = new Date(deadline);
+      return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    } catch {
+      return deadline;
+    }
+  };
+
   // Count by type
   const taskCount = savedItems.filter(item => item.type === 'task').length;
   const ideaCount = savedItems.filter(item => item.type === 'idea').length;
@@ -295,32 +327,35 @@ function formatBulkConfirmation(savedItems) {
   if (taskCount > 0) summary.push(`${taskCount} task${taskCount > 1 ? 's' : ''}`);
   if (ideaCount > 0) summary.push(`${ideaCount} idea${ideaCount > 1 ? 's' : ''}`);
   
-  let message = `Saved ${summary.join(' and ')}!\n\n`;
+  let message = `Perfect! I've saved ${summary.join(' and ')} for you:\n\n`;
   
-  // List each item with details
+  // List each item with natural language details
   savedItems.forEach((item, idx) => {
-    const typeLabel = item.type === 'task' ? 'TASK' : 'IDEA';
-    message += `${idx + 1}. [${typeLabel}] *${item.content}*\n`;
-    message += `   ID: ${item.id}`;
+    const typeLabel = item.type === 'task' ? 'task' : 'idea';
+    message += `${idx + 1}. *${item.content}* - `;
     
-    if (item.priority) {
-      message += ` | Priority: ${item.priority}`;
+    // Add priority if it's not medium (default)
+    if (item.priority && item.priority !== 'medium') {
+      message += `${item.priority} priority `;
     }
     
+    // Add category if exists
     if (item.category) {
-      message += ` | ${item.category}`;
+      message += `${item.category} `;
     }
     
+    message += typeLabel;
+    
+    // Add deadline if exists
     if (item.deadline) {
-      message += `\n   Deadline: ${item.deadline}`;
+      const formattedDate = formatDeadline(item.deadline);
+      message += `, due by ${formattedDate}`;
     }
     
-    message += '\n\n';
+    message += ` (ID: ${item.id})\n\n`;
   });
   
-  message += `Type "show tasks" or "list ideas" to see all your items`;
-  
-  return message;
+  return message.trim();
 }
 
 /**

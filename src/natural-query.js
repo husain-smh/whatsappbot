@@ -117,15 +117,17 @@ Here are the relevant items found (${relevantItems.length} total):
 
 ${itemsContext}
 
-FORMATTING RULES:
-- Use *single asterisks* for bold text (WhatsApp format)
-- DO NOT use **double asterisks**
-- DO NOT use emojis
-- Be concise and professional
-- List items with their key details: content, priority, category, deadline, tags
-- Use simple dashes (-) for bullet points
+RESPONSE STYLE:
+- Write in natural, conversational language - avoid field labels and bullet points
+- Weave information into flowing sentences (e.g., "You have 3 high priority tasks: *Finish presentation* for work by Friday, *Buy groceries* (personal) by Sunday...")
+- Use *single asterisks* for bold text on task/idea content (WhatsApp format)
+- DO NOT use **double asterisks** or emojis
+- Be concise but friendly and professional
+- If showing multiple items, integrate them into natural sentences or short paragraphs
+- Format dates naturally (e.g., "November 10th" instead of "2024-11-10")
+- Group related items when it makes sense (e.g., "Your high priority items are...", "For personal tasks you have...")
 
-Answer the user's question naturally. Be specific and reference the actual tasks/ideas they've saved.`;
+Answer the user's question in a natural, conversational way. Be specific and reference the actual tasks/ideas they've saved, but make it sound like you're talking to them, not listing database fields.`;
 
     console.log(`   💬 [NATURAL QUERY] Calling GPT with ${relevantItems.length} filtered items...`);
     
