@@ -17,11 +17,21 @@ function getOpenAIClient() {
 /**
  * Download audio file from Twilio's MediaUrl
  * Twilio requires Basic Auth (AccountSid:AuthToken)
+ * Handles HTTP redirects (307) automatically
  */
-async function downloadAudioFromTwilio(mediaUrl) {
+async function downloadAudioFromTwilio(mediaUrl, redirectCount = 0) {
+  // Prevent infinite redirect loops
+  if (redirectCount > 5) {
+    throw new Error('Too many redirects while downloading audio');
+  }
+  
   return new Promise((resolve, reject) => {
     try {
-      console.log('📥 [TRANSCRIPTION] Downloading audio from Twilio...');
+      if (redirectCount === 0) {
+        console.log('📥 [TRANSCRIPTION] Downloading audio from Twilio...');
+      } else {
+        console.log(`   Following redirect (${redirectCount})...`);
+      }
       
       // Create Basic Auth header
       const auth = Buffer.from(
@@ -41,6 +51,24 @@ async function downloadAudioFromTwilio(mediaUrl) {
       };
       
       const req = protocol.request(options, (res) => {
+        // Handle redirects (301, 302, 307, 308)
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          console.log(`   Redirect detected: ${res.statusCode} → ${res.headers.location}`);
+          
+          // Follow the redirect
+          downloadAudioFromTwilio(res.headers.location, redirectCount + 1)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        
+        // Handle non-200 responses
+        if (res.statusCode !== 200) {
+          reject(new Error(`Failed to download audio: HTTP ${res.statusCode}`));
+          return;
+        }
+        
+        // Download the actual file
         const chunks = [];
         let totalSize = 0;
         
@@ -50,11 +78,6 @@ async function downloadAudioFromTwilio(mediaUrl) {
         });
         
         res.on('end', () => {
-          if (res.statusCode !== 200) {
-            reject(new Error(`Failed to download audio: HTTP ${res.statusCode}`));
-            return;
-          }
-          
           const buffer = Buffer.concat(chunks);
           const contentType = res.headers['content-type'] || 'audio/ogg';
           
