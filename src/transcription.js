@@ -123,12 +123,15 @@ async function transcribeWithWhisper(audioBuffer, mimeType) {
     else if (mimeType.includes('wav')) extension = 'wav';
     else if (mimeType.includes('webm')) extension = 'webm';
     
-    // Create a File object from buffer (Whisper API expects a file)
-    const audioFile = new File(
-      [audioBuffer], 
-      `voice_note.${extension}`, 
-      { type: mimeType }
-    );
+    // Create a Blob from buffer (Node.js 18+ has native Blob support)
+    const audioBlob = new Blob([audioBuffer], { type: mimeType });
+    
+    // Create a File-like object for the OpenAI SDK
+    // The SDK needs an object with name, type, and blob/buffer properties
+    const audioFile = Object.assign(audioBlob, {
+      name: `voice_note.${extension}`,
+      lastModified: Date.now()
+    });
     
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => 
